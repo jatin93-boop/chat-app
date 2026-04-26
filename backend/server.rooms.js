@@ -11,7 +11,7 @@ const server = http.createServer(app);
 app.use(cors());
 app.use(express.json());
 
-// serve frontend (index.html in same folder)
+// serve frontend (index.html must be in same folder)
 app.use(express.static(__dirname));
 
 // socket setup
@@ -19,7 +19,7 @@ const io = new Server(server, {
   cors: { origin: "*" },
 });
 
-// in-memory storage
+// memory storage
 const users = new Map();
 const rooms = new Map();
 
@@ -41,7 +41,10 @@ app.get("/", (req, res) => {
 
 // health route
 app.get("/health", (req, res) => {
-  res.json({ ok: true, users: users.size });
+  res.json({
+    ok: true,
+    users: users.size,
+  });
 });
 
 // socket connection
@@ -53,7 +56,7 @@ io.on("connection", (socket) => {
     room: "LOBBY",
   });
 
-  // join user
+  // user joins
   socket.on("user joined", ({ name, roomCode }) => {
     const user = users.get(socket.id);
 
@@ -73,6 +76,7 @@ io.on("connection", (socket) => {
   socket.on("room message", ({ text }) => {
     const user = users.get(socket.id);
 
+    // ✅ IMPORTANT FIX
     if (!user || !text || !text.trim()) return;
 
     const room = getRoom(user.room);
