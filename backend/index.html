@@ -1,90 +1,84 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Chat App</title>
-  <style>
-    body {
-      font-family: Arial;
-      text-align: center;
-      background: #f5f5f5;
-    }
+const path = require("path");
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const cors = require("cors");
 
-    h2 {
-      color: #333;
-    }
+const app = express();
+const server = http.createServer(app);
 
-    #chat {
-      height: 350px;
-      width: 80%;
-      margin: auto;
-      overflow-y: scroll;
-      border: 1px solid #ccc;
-      background: white;
-      padding: 10px;
-      margin-bottom: 10px;
-    }
+app.use(cors());
+app.use(express.json());
 
-    input {
-      padding: 10px;
-      width: 60%;
-    }
+// Serve frontend
+app.use(express.static(__dirname));
 
-    button {
-      padding: 10px;
-      background: #007bff;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
+const io = new Server(server, {
+  cors: { origin: "*" },
+});
 
-    button:hover {
-      background: #0056b3;
-    }
-  </style>
-</head>
-<body>
+const users = new Map();
+const rooms = new Map();
 
-<h2>💬 Chat App</h2>
-
-<div id="chat"></div>
-
-<input id="message" placeholder="Type message..." />
-<button onclick="sendMessage()">Send</button>
-
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-
-<script>
-  // 🔥 REPLACE WITH YOUR ACTUAL RENDER URL
-  const socket = io("https://your-app.onrender.com");
-
-  const chat = document.getElementById("chat");
-  let username = "";
-
-  // Ask username
-  socket.on("connect", () => {
-    username = prompt("Enter your name:");
-    socket.emit("user joined", { name: username });
-  });
-
-  // Receive messages (correct event)
-  socket.on("room message", (msg) => {
-    const p = document.createElement("p");
-    p.innerText = msg.sender + ": " + msg.text;
-    chat.appendChild(p);
-    chat.scrollTop = chat.scrollHeight;
-  });
-
-  // Send message (correct event)
-  function sendMessage() {
-    const input = document.getElementById("message");
-
-    if (input.value.trim() === "") return;
-
-    socket.emit("room message", { text: input.value });
-
-    input.value = "";
+function getRoom(roomCode = "LOBBY") {
+  if (!rooms.has(roomCode)) {
+    rooms.set(roomCode, { members: new Set(), messages: [] });
   }
-</script>
+  return rooms.get(roomCode);
+}
 
-</body>
-</html>
+// Root route → serve HTML
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+// Health check
+app.get("/health", (req, res) => {
+  res.json({ ok: true, users: users.size });
+});
+
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  users.set(socket.id, { name: "Anonymous", room: "LOBBY" });
+
+  socket.on("user joined", ({ name, roomCode }) => {
+    const user = users.get(socket.id);
+    user.name = name || "Anonymous";
+    user.room = roomCode || "LOBBY";
+
+    const room = getRoom(user.room);
+    room.members.add(socket.id);
+
+    socket.join(user.room);
+
+    // send previous messages
+    socket.emit("room history", room.messages);
+  });
+
+  socket.on("room message", ({ text }) => {
+    const user = users.get(socket.id);
+    if (!user || !text) return;
+
+    const room = getRoom(user.room);
+
+    const msg = {
+      sender: user.name,
+      text: text,
+    };
+
+    room.messages.push(msg);
+
+    io.to(user.room).emit("room message", msg);
+  });
+
+  socket.on("disconnect", () => {
+    users.delete(socket.id);
+    console.log("User disconnected:", socket.id);
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log("Server running on port", PORT);
+});
