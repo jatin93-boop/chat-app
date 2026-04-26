@@ -22,21 +22,20 @@
 <h2>💬 Chat App</h2>
 
 <div id="chat"></div>
+
 <input id="message" placeholder="Type message..." />
 <button onclick="sendMessage()">Send</button>
 
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
 <script>
-  // ⚠️ IMPORTANT: replace with YOUR Render URL
+  // 🔥 IMPORTANT: replace with your Render URL
   const socket = io("https://your-app.onrender.com");
 
   const chat = document.getElementById("chat");
   let username = "";
 
   socket.on("connect", () => {
-    console.log("Connected");
-
     username = prompt("Enter your name:");
     socket.emit("user joined", {
       name: username,
@@ -44,12 +43,10 @@
     });
   });
 
-  // load old messages
   socket.on("room history", (messages) => {
     messages.forEach(addMessage);
   });
 
-  // receive new messages
   socket.on("room message", (msg) => {
     addMessage(msg);
   });
