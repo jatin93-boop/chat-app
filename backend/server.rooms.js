@@ -1,4 +1,5 @@
 console.log("[DEBUG] Starting backend server.rooms.js...");
+
 try {
   const path = require("path");
   const express = require("express");
@@ -8,6 +9,9 @@ try {
 
   const app = express();
   const server = http.createServer(app);
+
+  app.use(cors());
+  app.use(express.json());
 
   const io = new Server(server, {
     cors: {
@@ -21,7 +25,8 @@ try {
   const roomTyping = new Map();
   const privateTyping = new Map();
 
-  const normalizeRoomCode = (value) => (value || "LOBBY").trim().toUpperCase().slice(0, 12);
+  const normalizeRoomCode = (value) =>
+    (value || "LOBBY").trim().toUpperCase().slice(0, 12);
 
   const createMessage = ({
     sender = "Anonymous",
@@ -41,13 +46,11 @@ try {
 
   const pushLimited = (collection, item, limit = 100) => {
     collection.push(item);
-
-    if (collection.length > limit) {
-      collection.shift();
-    }
+    if (collection.length > limit) collection.shift();
   };
 
-  const getThreadKey = (first, second) => [first, second].sort().join(":");
+  const getThreadKey = (first, second) =>
+    [first, second].sort().join(":");
 
   const getOrCreateRoom = (roomCode) => {
     const code = normalizeRoomCode(roomCode);
@@ -59,23 +62,17 @@ try {
         messages: [],
       });
     }
-
     return rooms.get(code);
   };
 
   const emitRoomUsers = (roomCode) => {
-    if (!roomCode || !rooms.has(roomCode)) {
-      return;
-    }
+    if (!roomCode || !rooms.has(roomCode)) return;
 
     const room = rooms.get(roomCode);
     const members = Array.from(room.members)
       .map((socketId) => {
         const user = users.get(socketId);
-
-        if (!user) {
-          return null;
-        }
+        if (!user) return null;
 
         return {
           id: socketId,
@@ -103,7 +100,8 @@ try {
         .map(([, name]) => name);
 
       io.to(participantId).emit("private typing", {
-        partnerId: participantId === socketId ? partnerId : socketId,
+        partnerId:
+          participantId === socketId ? partnerId : socketId,
         users: otherUsers,
       });
     });
@@ -127,10 +125,7 @@ try {
 
   const joinRoom = (socket, requestedRoomCode, announceJoin = true) => {
     const user = users.get(socket.id);
-
-    if (!user) {
-      return;
-    }
+    if (!user) return;
 
     const nextRoomCode = normalizeRoomCode(requestedRoomCode);
     const previousRoomCode = user.roomCode;
@@ -187,10 +182,12 @@ try {
       roomCode: nextRoomCode,
       messages: room.messages,
     });
+
     emitRoomUsers(nextRoomCode);
     emitRoomTyping(nextRoomCode);
   };
 
+  // ✅ HEALTH ROUTE
   app.get("/health", (_req, res) => {
     res.json({
       ok: true,
@@ -199,6 +196,12 @@ try {
     });
   });
 
+  // ✅ ROOT ROUTE (FIXED)
+  app.get("/", (_req, res) => {
+    res.send("Chat App Backend Running 🚀");
+  });
+
+  // OPTIONAL frontend (will not break if missing)
   const frontendBuildPath = path.resolve(__dirname, "../frontend/build");
   app.use(express.static(frontendBuildPath));
 
@@ -218,192 +221,41 @@ try {
 
     socket.on("user joined", ({ name, roomCode }) => {
       const user = users.get(socket.id);
+      if (!user) return;
 
-      if (!user) {
-        return;
-      }
-
-      const nextName = name?.trim() || "Anonymous";
-      const previousName = user.name;
-      const renamed = previousName !== nextName;
-
-      user.name = nextName;
-
-      if (renamed && user.roomCode && rooms.has(user.roomCode)) {
-        const room = rooms.get(user.roomCode);
-        const renameMessage = createMessage({
-          sender: "System",
-          text: `${previousName} is now chatting as ${nextName}.`,
-          type: "system",
-          roomCode: user.roomCode,
-        });
-
-        pushLimited(room.messages, renameMessage);
-        io.to(user.roomCode).emit("room message", renameMessage);
-      }
-
-      joinRoom(socket, roomCode || user.roomCode || "LOBBY", !user.roomCode);
-    });
-
-    socket.on("join room", ({ roomCode }) => {
-      joinRoom(socket, roomCode, true);
-    });
-
-    socket.on("load private thread", ({ partnerId }) => {
-      const threadKey = getThreadKey(socket.id, partnerId);
-      socket.emit("private thread", {
-        partnerId,
-        messages: directThreads.get(threadKey) || [],
-      });
-    });
-
-    socket.on("typing", ({ scope, partnerId, isTyping }) => {
-      const user = users.get(socket.id);
-
-      if (!user) {
-        return;
-      }
-
-      if (scope === "private" && partnerId) {
-        const threadKey = getThreadKey(socket.id, partnerId);
-
-        if (!privateTyping.has(threadKey)) {
-          privateTyping.set(threadKey, new Map());
-        }
-
-        const typingMap = privateTyping.get(threadKey);
-
-        if (isTyping) {
-          typingMap.set(socket.id, user.name);
-        } else {
-          typingMap.delete(socket.id);
-        }
-
-        emitPrivateTyping(socket.id, partnerId);
-        return;
-      }
-
-      if (!user.roomCode) {
-        return;
-      }
-
-      if (!roomTyping.has(user.roomCode)) {
-        roomTyping.set(user.roomCode, new Map());
-      }
-
-      const typingMap = roomTyping.get(user.roomCode);
-
-      if (isTyping) {
-        typingMap.set(socket.id, user.name);
-      } else {
-        typingMap.delete(socket.id);
-      }
-
-      emitRoomTyping(user.roomCode);
+      user.name = name?.trim() || "Anonymous";
+      joinRoom(socket, roomCode || "LOBBY", true);
     });
 
     socket.on("room message", ({ text }) => {
       const user = users.get(socket.id);
-
-      if (!user || !user.roomCode || !text?.trim()) {
-        return;
-      }
-
-      clearTypingForSocket(socket.id);
+      if (!user || !user.roomCode || !text?.trim()) return;
 
       const room = getOrCreateRoom(user.roomCode);
+
       const payload = createMessage({
         sender: user.name,
         text: text.trim(),
-        type: "message",
-        scope: "room",
-        roomCode: user.roomCode,
       });
 
       pushLimited(room.messages, payload);
       io.to(user.roomCode).emit("room message", payload);
     });
+  });
 
-    socket.on("private message", ({ text, recipientId }) => {
-      const user = users.get(socket.id);
+  // ✅ SAFE FALLBACK (no error if frontend missing)
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/socket.io")) return next();
 
-      if (!user || !recipientId || !users.has(recipientId) || !text?.trim()) {
-        return;
-      }
-
-      clearTypingForSocket(socket.id);
-
-      const threadKey = getThreadKey(socket.id, recipientId);
-
-      if (!directThreads.has(threadKey)) {
-        directThreads.set(threadKey, []);
-      }
-
-      const payload = createMessage({
-        sender: user.name,
-        text: text.trim(),
-        type: "message",
-        scope: "private",
-      });
-
-      pushLimited(directThreads.get(threadKey), payload);
-
-      [socket.id, recipientId].forEach((participantId) => {
-        io.to(participantId).emit("private message", {
-          partnerId: participantId === socket.id ? recipientId : socket.id,
-          message: payload,
-        });
-      });
-    });
-
-    socket.on("disconnect", () => {
-      const user = users.get(socket.id);
-
-      if (!user) {
-        return;
-      }
-
-      clearTypingForSocket(socket.id);
-
-      if (user.roomCode && rooms.has(user.roomCode)) {
-        const room = rooms.get(user.roomCode);
-        room.members.delete(socket.id);
-
-        const leaveMessage = createMessage({
-          sender: "System",
-          text: `${user.name} left room ${user.roomCode}.`,
-          type: "system",
-          roomCode: user.roomCode,
-        });
-
-        pushLimited(room.messages, leaveMessage);
-        io.to(user.roomCode).emit("room message", leaveMessage);
-        emitRoomUsers(user.roomCode);
-      }
-
-      users.delete(socket.id);
-      console.log("User disconnected:", socket.id);
-    });
+    res.send("Backend is running. Frontend not deployed.");
   });
 
   const PORT = process.env.PORT || 3002;
 
-  app.get("*", (req, res, next) => {
-    if (req.path.startsWith("/socket.io")) {
-      next();
-      return;
-    }
-
-    res.sendFile(path.join(frontendBuildPath, "index.html"), (error) => {
-      if (error) {
-        next();
-      }
-    });
-  });
-
   server.listen(PORT, () => {
     console.log("Server running on port", PORT);
   });
+
 } catch (err) {
   console.error("[ERROR] Backend failed to start:", err);
 }
