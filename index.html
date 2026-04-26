@@ -1,112 +1,78 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Resume - Hardik Arora</title>
+  <title>Chat App</title>
+  <style>
+    body { font-family: Arial; text-align: center; background: #f5f5f5; }
+    #chat {
+      height: 350px;
+      width: 80%;
+      margin: auto;
+      overflow-y: scroll;
+      border: 1px solid #ccc;
+      background: white;
+      padding: 10px;
+    }
+    input { padding: 10px; width: 60%; }
+    button { padding: 10px; }
+  </style>
 </head>
-
 <body>
 
-    <!-- HEADER SECTION -->
-    <center>
-        <h1>Hardik Arora</h1>
-        <p>Computer Science Engineering Student</p>
-        <img src="photo.jpg" alt="Hardik Photo" width="150">
-    </center>
+<h2>💬 Chat App</h2>
 
-    <hr>
+<div id="chat"></div>
+<input id="message" placeholder="Type message..." />
+<button onclick="sendMessage()">Send</button>
 
-    <!-- CONTACT DETAILS -->
-    <h2>Contact Information</h2>
-    <p><b>Phone:</b> +91 6283781463</p>
-    <p><b>Email:</b> arorahdk123@gmail.com</p>
-    <p><b>Address:</b> Amritsar, Punjab, India</p>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
-    <!-- SHORT INTRO -->
-    <h2>Introduction</h2>
-    <p>
-        I am a passionate Computer Science Engineering student with an
-        interest in software development, data science, and problem solving.
-        I enjoy learning new technologies and applying them in real projects.
-    </p>
+<script>
+  // ⚠️ IMPORTANT: replace with YOUR Render URL
+  const socket = io("https://your-app.onrender.com");
 
-    <!-- SOCIAL MEDIA -->
-    <h2>Online Profiles</h2>
-    <ul>
-        <li>
-            <a href="https://www.linkedin.com/in/hardik-arora-130713388" target="_blank">
-                LinkedIn
-            </a>
-        </li>
-        <li>
-            <a href="https://github.com/" target="_blank">
-                GitHub
-            </a>
-        </li>
-        <li>
-            <a href="https://leetcode.com/" target="_blank">
-                LeetCode
-            </a>
-        </li>
-    </ul>
+  const chat = document.getElementById("chat");
+  let username = "";
 
-    <!-- EDUCATION -->
-    <h2>Academic Background</h2>
-    <p><b>B.E. in Computer Science Engineering (Data Science)</b></p>
-    <p>Chandigarh University, Mohali</p>
-    <p>Duration: 2024 – 2028 | CGPA: 7.13</p>
+  socket.on("connect", () => {
+    console.log("Connected");
 
-    <p><b>Higher Secondary (Science Stream)</b></p>
-    <p>Amritsar, Punjab | Score: 94%</p>
+    username = prompt("Enter your name:");
+    socket.emit("user joined", {
+      name: username,
+      roomCode: "LOBBY"
+    });
+  });
 
-    <p><b>Secondary Education</b></p>
-    <p>D.A.V. International School, Amritsar | Score: 94%</p>
+  // load old messages
+  socket.on("room history", (messages) => {
+    messages.forEach(addMessage);
+  });
 
-    <!-- SKILLS -->
-    <h2>Skill Set</h2>
+  // receive new messages
+  socket.on("room message", (msg) => {
+    addMessage(msg);
+  });
 
-    <p><b>Programming & Technical Skills:</b></p>
-    <ul>
-        <li>C, C++</li>
-        <li>Java</li>
-        <li>Python</li>
-        <li>HTML, CSS, JavaScript</li>
-    </ul>
+  function addMessage(msg) {
+    const p = document.createElement("p");
+    p.innerText = msg.sender + ": " + msg.text;
+    chat.appendChild(p);
+    chat.scrollTop = chat.scrollHeight;
+  }
 
-    <p><b>Personal & Soft Skills:</b></p>
-    <ul>
-        <li>Effective Communication</li>
-        <li>Analytical Thinking</li>
-        <li>Team Coordination</li>
-        <li>Decision Making</li>
-    </ul>
+  function sendMessage() {
+    const input = document.getElementById("message");
 
-    <!-- PROJECTS -->
-    <h2>Academic Projects</h2>
+    if (!input.value.trim()) return;
 
-    <p><b>Credit Card Fraud Detection</b></p>
-    <ul>
-        <li>Built a machine learning model using Python</li>
-        <li>Focused on detecting fraudulent transactions accurately</li>
-    </ul>
+    socket.emit("room message", {
+      text: input.value
+    });
 
-    <p><b>AI-Based Waste Detection System</b></p>
-    <ul>
-        <li>Used OpenCV for waste detection and classification</li>
-        <li>Supported automated waste segregation ideas</li>
-    </ul>
-
-    <p><b>Infrared Smart Walking Stick</b></p>
-    <ul>
-        <li>Designed an obstacle detection system using IR sensors</li>
-        <li>Aimed to improve safety for visually impaired users</li>
-    </ul>
-
-    <!-- EXTRA SECTION -->
-    <h2>Additional Details</h2>
-    <p>
-        Interested in artificial intelligence, data science applications,
-        and building technology solutions that help society.
-    </p>
+    input.value = "";
+  }
+</script>
 
 </body>
 </html>
