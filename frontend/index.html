@@ -9,12 +9,8 @@
       background: #f5f5f5;
     }
 
-    h2 {
-      color: #333;
-    }
-
     #chat {
-      height: 300px;
+      height: 350px;
       width: 80%;
       margin: auto;
       overflow-y: scroll;
@@ -31,14 +27,7 @@
 
     button {
       padding: 10px;
-      background: #007bff;
-      color: white;
-      border: none;
       cursor: pointer;
-    }
-
-    button:hover {
-      background: #0056b3;
     }
   </style>
 </head>
@@ -54,32 +43,52 @@
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
 <script>
-  // 🔥 IMPORTANT: REPLACE THIS WITH YOUR RENDER URL
+  // ⚠️ REPLACE THIS WITH YOUR REAL RENDER URL
   const socket = io("https://your-app.onrender.com");
 
   const chat = document.getElementById("chat");
+  let username = "";
 
-  // Ask username on connect
+  // connect
   socket.on("connect", () => {
-    const name = prompt("Enter your name:");
-    socket.emit("user joined", { name: name });
+    console.log("Connected");
+
+    username = prompt("Enter your name:");
+
+    socket.emit("user joined", {
+      name: username,
+      roomCode: "LOBBY"
+    });
   });
 
-  // Receive messages
-  socket.on("chat message", (msg) => {
+  // load previous messages
+  socket.on("room history", (messages) => {
+    messages.forEach(addMessage);
+  });
+
+  // receive messages
+  socket.on("room message", (msg) => {
+    addMessage(msg);
+  });
+
+  // add message to UI
+  function addMessage(msg) {
     const p = document.createElement("p");
     p.innerText = msg.sender + ": " + msg.text;
     chat.appendChild(p);
     chat.scrollTop = chat.scrollHeight;
-  });
+  }
 
-  // Send message
+  // send message
   function sendMessage() {
     const input = document.getElementById("message");
 
-    if (input.value.trim() === "") return;
+    if (!input.value.trim()) return;
 
-    socket.emit("chat message", { text: input.value });
+    socket.emit("room message", {
+      text: input.value
+    });
+
     input.value = "";
   }
 </script>
