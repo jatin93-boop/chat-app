@@ -1,5 +1,5 @@
-
 console.log("[DEBUG] Starting backend server.js...");
+
 try {
   const express = require("express");
   const http = require("http");
@@ -8,6 +8,9 @@ try {
 
   const app = express();
   const server = http.createServer(app);
+
+  app.use(cors());
+  app.use(express.json());
 
   const io = new Server(server, {
     cors: {
@@ -19,12 +22,18 @@ try {
   const typingUsers = new Set();
   const messageHistory = [];
 
+  // ✅ HEALTH ROUTE
   app.get("/health", (_req, res) => {
     res.json({
       ok: true,
       users: users.size,
       messages: messageHistory.length,
     });
+  });
+
+  // ✅ ROOT ROUTE (FIX FOR "Cannot GET /")
+  app.get("/", (_req, res) => {
+    res.send("Chat App Backend Running 🚀");
   });
 
   const createMessage = ({ sender = "Anonymous", text = "", type = "message" }) => ({
@@ -51,17 +60,13 @@ try {
 
   const pushToHistory = (message) => {
     messageHistory.push(message);
-
     if (messageHistory.length > 100) {
       messageHistory.shift();
     }
   };
 
   const removeUserFromTyping = (name) => {
-    if (!name) {
-      return;
-    }
-
+    if (!name) return;
     typingUsers.delete(name);
     broadcastTyping();
   };
@@ -116,9 +121,7 @@ try {
       const sender = users.get(socket.id) || message?.sender || "Anonymous";
       const text = message?.text || "";
 
-      if (!text.trim()) {
-        return;
-      }
+      if (!text.trim()) return;
 
       removeUserFromTyping(sender);
 
@@ -155,6 +158,7 @@ try {
   server.listen(PORT, () => {
     console.log("🚀 Server running on port", PORT);
   });
+
 } catch (err) {
   console.error("[ERROR] Backend failed to start:", err);
 }
