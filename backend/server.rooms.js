@@ -7,19 +7,23 @@ const cors = require("cors");
 const app = express();
 const server = http.createServer(app);
 
+// middleware
 app.use(cors());
 app.use(express.json());
 
-// Serve frontend
+// serve frontend (index.html in same folder)
 app.use(express.static(__dirname));
 
+// socket setup
 const io = new Server(server, {
   cors: { origin: "*" },
 });
 
+// in-memory storage
 const users = new Map();
 const rooms = new Map();
 
+// helper
 function getRoom(roomCode = "LOBBY") {
   if (!rooms.has(roomCode)) {
     rooms.set(roomCode, {
@@ -30,16 +34,17 @@ function getRoom(roomCode = "LOBBY") {
   return rooms.get(roomCode);
 }
 
-// Root route
+// root route
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// Health check
+// health route
 app.get("/health", (req, res) => {
   res.json({ ok: true, users: users.size });
 });
 
+// socket connection
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
@@ -48,6 +53,7 @@ io.on("connection", (socket) => {
     room: "LOBBY",
   });
 
+  // join user
   socket.on("user joined", ({ name, roomCode }) => {
     const user = users.get(socket.id);
 
@@ -59,11 +65,14 @@ io.on("connection", (socket) => {
 
     socket.join(user.room);
 
+    // send old messages
     socket.emit("room history", room.messages);
   });
 
+  // send message
   socket.on("room message", ({ text }) => {
     const user = users.get(socket.id);
+
     if (!user || !text || !text.trim()) return;
 
     const room = getRoom(user.room);
@@ -78,12 +87,14 @@ io.on("connection", (socket) => {
     io.to(user.room).emit("room message", msg);
   });
 
+  // disconnect
   socket.on("disconnect", () => {
     users.delete(socket.id);
     console.log("User disconnected:", socket.id);
   });
 });
 
+// start server
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
