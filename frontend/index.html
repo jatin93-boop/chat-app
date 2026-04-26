@@ -3,32 +3,18 @@
 <head>
   <title>Chat App</title>
   <style>
-    body {
-      font-family: Arial;
-      text-align: center;
-      background: #f5f5f5;
-    }
-
+    body { font-family: Arial; text-align: center; }
     #chat {
       height: 350px;
       width: 80%;
       margin: auto;
-      overflow-y: scroll;
       border: 1px solid #ccc;
+      overflow-y: scroll;
+      padding: 10px;
       background: white;
-      padding: 10px;
-      margin-bottom: 10px;
     }
-
-    input {
-      padding: 10px;
-      width: 60%;
-    }
-
-    button {
-      padding: 10px;
-      cursor: pointer;
-    }
+    input { width: 60%; padding: 10px; }
+    button { padding: 10px; }
   </style>
 </head>
 <body>
@@ -43,13 +29,13 @@
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
 <script>
-  // ⚠️ REPLACE THIS WITH YOUR REAL RENDER URL
-  const socket = io("https://your-app.onrender.com");
+  // ✅ IMPORTANT FIX (auto connect to same server)
+  const socket = io();
 
   const chat = document.getElementById("chat");
+
   let username = "";
 
-  // connect
   socket.on("connect", () => {
     console.log("Connected");
 
@@ -61,17 +47,14 @@
     });
   });
 
-  // load previous messages
   socket.on("room history", (messages) => {
     messages.forEach(addMessage);
   });
 
-  // receive messages
   socket.on("room message", (msg) => {
     addMessage(msg);
   });
 
-  // add message to UI
   function addMessage(msg) {
     const p = document.createElement("p");
     p.innerText = msg.sender + ": " + msg.text;
@@ -79,7 +62,6 @@
     chat.scrollTop = chat.scrollHeight;
   }
 
-  // send message
   function sendMessage() {
     const input = document.getElementById("message");
 
